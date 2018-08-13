@@ -404,9 +404,32 @@ void fill_truth_iseg(char *path, int num_boxes, float *truth, int classes, int w
     free_image(part);
 }
 
-
-void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, int flip, float dx, float dy, float sx, float sy)
+/**
+ * \brief: 用来获取一张图的真实标签信息. 对于图像检测，标签信息包括目标类别(用类别编号表示)  
+ *         以及矩形框中心点坐标 x,y 以及宽高 w,h
+ * 
+ * \param: path      一张图片所在路径，字符数组
+ *         num_boxes 每张图片允许处理的最大的矩形框数; 如果图片中包含的矩形框大于 
+ *                   num_boxes， 那么随机取其中 num_boxes 个矩形框参与训练
+ *         classes   本函数并未使用该参数
+ *         flip      图片在之前读入时是否进行左右翻转
+ *         dx        dx 是中间图相对最终图的起点位置的 x 坐标除以最终图的宽度(并取负值)
+ *         dy        dy 是中间图相对最终图的起点位置的 x 坐标除以最终图的高度(并取负值)
+ *         sx        sx 是中间图宽度与最终图宽度的比值
+ *         sy        sy 是中间图高度与最终图高度的比值
+ * 
+ * 说明： 后面五个参数，用来矫正矩形框的信息，因为在此函数之前，对输入图片进行了缩放、
+ *       平移、左右翻转一系列的数据增广操作，这些操作不会改变物体的类别信息， 但会改
+ *       变物体的位置信息，也即矩形框信息，因此需要进行矫正. 
+ *       这些参数的具体含义上面可能未说清，具体可参看本函数内部调用时用法
+ *
+ * \return: truth 存储一张图片包含的所有标签信息, 实质上是一个一维数组，每个矩形框
+ *                有 5 条信息. 对于检测而言，主要包括物体类别以及定位(矩形框)信息.
+*/
+void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, 
+    int flip, float dx, float dy, float sx, float sy)
 {
+    // 确定 labels 文件存放目录
     char labelpath[4096];
     find_replace(path, "images", "labels", labelpath);
     find_replace(labelpath, "JPEGImages", "labels", labelpath);
@@ -416,10 +439,12 @@ void fill_truth_detection(char *path, int num_boxes, float *truth, int classes, 
     find_replace(labelpath, ".png", ".txt", labelpath);
     find_replace(labelpath, ".JPG", ".txt", labelpath);
     find_replace(labelpath, ".JPEG", ".txt", labelpath);
+
+    // 读取 labelpath 标注文件中对应的标注信息
     int count = 0;
     box_label *boxes = read_boxes(labelpath, &count);
-    randomize_boxes(boxes, count);
-    correct_boxes(boxes, count, dx, dy, sx, sy, flip);
+    randomize_boxes(boxes, count);  // 打乱标注框的顺序
+    correct_boxes(boxes, count, dx, dy, sx, sy, flip); // 根据可能进行过的图像增广方式调整矩形框标注参数
     if(count > num_boxes) count = num_boxes;
     float x,y,w,h;
     int id;
@@ -954,10 +979,56 @@ data load_data_swag(char **paths, int n, int classes, float jitter)
     return d;
 }
 
-data load_data_detection(int n, char **paths, int m, int w, int h, int boxes, int classes, float jitter, float hue, float saturation, float exposure)
+/**
+ * 
+ * \brief: 加载训练检测器时的原始数据并进行图像增广.  
+ * 
+ *         从所有训练图片中，随机读取 n 张，并对这 n 张图片进行数据增广，同时矫正
+ *         增广后的数据标签信息。最终得到的图片的宽高为 w,h(原始训练集中的图片尺寸不定)，
+ *         也就是送入网络处理的图片尺寸，
+ *         
+ *         数据增广包括: 对原始图片进行宽高方向上的插值缩放(两方向上缩放系数不一定相同)，
+ *                     下面称之为缩放抖动； 随机抠取或者平移图片(位置抖动)；
+ *                     在 hsv 颜色空间增加噪声(颜色抖动)； 左右水平翻转，不含旋转抖动。 
+ * 
+ * \param: n          一个线程读入的图片张数, 不是总的训练图片张数, 而是分配到该线程上的
+ *                    n, 比如总共要读入 128 张图片, 共开启 8 个线程读数据, 那么本函数中
+ *                    的 n 为 128 / 8 = 16
+ *         paths      所有训练图片所在路径的集合，是一个二维数组，每一行对应一张图片的路径
+ *                    程序将在其中随机取 n 个
+ *         m          paths 的行数，也即训练图片总数
+ *         w          网络能够处理的图的宽度
+ *         h          网络能够处理的图的高度
+ *         boxes      每张训练图片中程序处理的最多矩形框数
+ *                    图片内可能含有大量的矩形框，那么就在其中随机选择 boxes 个参与训练，
+ *                    具体执行在 fill_truth_detection() 函数中
+ *         classes    类别总数. 本函数并未用到(其实是 fill_truth_detection() 函数)
+ *         jitter     这个参数表示图片缩放抖动的剧烈程度，这个值越大，允许的抖动范围越大
+ *                    所谓缩放抖动，就是在宽高上插值缩放图片，宽高两方向上缩放的系数不一定相同 
+ *         hue        颜色(hsv颜色空间)上色调(取值0-360度)偏差的最大值，
+ *                    实际色调偏差为-hue~hue之间的随机值
+ *         saturation 颜色(hsv颜色空间)上色彩饱和度(取值范围0~1)缩放的最大值
+ *         exposure   颜色(hsv颜色空间)上明度(色彩明亮程度，0~1)缩放的最大值
+ * 
+ * \return: data 类型数据，包含一个线程读入的所有图片数据(含有n张图片)
+ * 
+ * 说明: 最后四个参数用于数据增广， 主要对原图进行缩放抖动， 位置抖动(平移)以及颜色抖动
+ *      (颜色值增加一定噪声)，抖动一定程度上可以理解成对图像增加噪声。  
+ * 
+ *      通过对原始图像进行抖动，实现数据增广。最后三个参数在 random_distort_image() 
+ *      函数中使用 
+ * 
+ *      从此函数可以看出，darknet 对训练集中图片的尺寸没有要求，可以是任意尺寸的图片，
+ *      因为经该函数处理(缩放/裁剪)之后，不管是什么尺寸的照片，都会统一为网络训练使用的尺寸
+*/
+
+data load_data_detection(int n, char **paths, int m, int w, int h, int boxes, 
+    int classes, float jitter, float hue, float saturation, float exposure)
 {
+    // 从 paths 中随机选取 n 张图片路径; 注意内存空间管理
     char **random_paths = get_random_paths(paths, n, m);
     int i;
+
     data d = {0};
     d.shallow = 0;
 
@@ -966,6 +1037,9 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int boxes, in
     d.X.cols = h*w*3;
 
     d.y = make_matrix(n, 5*boxes);
+
+    // 依次读入每一张图片到 d.X.vals 的适当位置
+    // 同时读入对应的标签信息到 d.y.vals 的适当位置
     for(i = 0; i < n; ++i){
         image orig = load_image_color(random_paths[i], 0, 0);
         image sized = make_image(w, h, orig.c);
@@ -974,7 +1048,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int boxes, in
         float dw = jitter * orig.w;
         float dh = jitter * orig.h;
 
-        float new_ar = (orig.w + rand_uniform(-dw, dw)) / (orig.h + rand_uniform(-dh, dh));
+        float new_ar = (orig.w + rand_uniform(-dw, dw)) / 
+            (orig.h + rand_uniform(-dh, dh));
         float scale = rand_uniform(.25, 2);
 
         float nw, nh;
@@ -999,7 +1074,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int boxes, in
         d.X.vals[i] = sized.data;
 
 
-        fill_truth_detection(random_paths[i], boxes, d.y.vals[i], classes, flip, -dx/w, -dy/h, nw/w, nh/h);
+        fill_truth_detection(random_paths[i], boxes, d.y.vals[i], 
+            classes, flip, -dx/w, -dy/h, nw/w, nh/h);
 
         free_image(orig);
     }

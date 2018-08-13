@@ -836,7 +836,7 @@ data load_data_swag(char **paths, int n, int classes, float jitter)
 */
 data load_data_detection(int n, char **paths, int m, int w, int h, int boxes, int classes, float jitter, float hue, float saturation, float exposure)
 {
-    // paths包含所有训练图片的路径，get_random_paths函数从中随机提出n条，即为此次读入的n张图片的路径
+    // paths 包含所有训练图片的路径，get_random_paths函数从中随机提出n条，即为此次读入的n张图片的路径
     char **random_paths = get_random_paths(paths, n, m);
     int i;
     // 初始化为0,清楚内存中之前的旧值（类似data d ={};，参考：https://www.zhihu.com/question/46405621/answer/101218929）

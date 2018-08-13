@@ -1438,7 +1438,24 @@ void test_resize(char *filename)
 #endif
 }
 
-
+/**
+ *  \brief: 调用开源库 stb_image.h 的 stbi_load() 函数读入图片, 并转为 darkenet 的 image 类型
+ * 
+ *  \param: filename    图片路径
+ *          channels    期待图片通道
+ *  
+ *  \return: image 类型变量
+ *           灰度值被归一化至 0～1, 灰度值存储方式为 rrr...ggg...bbb...（只有一行）, 
+ *           三通道最终也是存储为一行, 每通道的二维数据按行存储（即所有行并成一行）, 
+ *           而后三通道再并成一行存储
+ * 
+ *  说明: stbi_load() 返回的值是 unsigned char* 类型, 且数据存储方式是 rgbrgb... 
+ *       格式（只有一行）, 而 darknet 中的 image 是三个通道分开存储的（先存所有的 r 通道, 
+ *       然后依次是 g, b 通道但还是只有一行）, 类似这种形式: rrr...ggg...bbb...
+ * 
+ *       如果读入图片通道数不等于 channels, 会进行强转(在 stbi_load() 函数内部完成转换) 
+ *       比如即使图片是彩色图, 也可以通过指定通道数读入灰度图, 这和 opencv 的读入函数类似
+*/
 image load_image_stb(char *filename, int channels)
 {
     int w, h, c;
@@ -1450,6 +1467,7 @@ image load_image_stb(char *filename, int channels)
     if(channels) c = channels;
     int i,j,k;
     image im = make_image(w, h, c);
+    // 遍历像素, 调整通道并进行归一化操作  
     for(k = 0; k < c; ++k){
         for(j = 0; j < h; ++j){
             for(i = 0; i < w; ++i){

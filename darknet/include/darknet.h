@@ -524,17 +524,45 @@ typedef struct detection{
     int sort_class;
 } detection;
 
+/**
+ * matrix 中每行就是一张图片的数据, 因此 cols 等于 h * w * 3, rows 就是 n, 即读入的
+ * 图片数据, n = net.batch * net.subdivisions * ngpus. 
+ * 
+ * 从 parse_net_option() 函数可知, net.batch = net.batch / net.subdivision
+ * 
+ * vals 存放的是具体的图片数据
+ * 
+ * TODO:  
+ * subdivision 的作用? 将 batch 再分成更小的 batch 来分批训练, 最后合并结果.  
+ * 这样做可以节约计算梯度的时间.  
+ */
 typedef struct matrix{
     int rows, cols;
     float **vals;
 } matrix;
 
 
+/**
+ * 保存待送入网络的训练数据
+ * 
+ * matrix 的 vals 成员是一个二维数组.  
+ * 
+ * 1) 如果是浅层释放, 即直接释放 vals 指针, 这种释放并不会真正释放二维数组的内容, 
+ * 因为 vals 实际是指针的指针, 只释放了用于存放 vals 指针变量的内存, 这样就不能
+ * 通过二维数组名来访问二维数组中的元素. 因此这种释放, 需要先将数据转移, 使得有其他
+ * 指针能够指向这些数据块, 不能就会造成内存溢出了; 
+ * 
+ * 2) 深层释放, 是循环逐行释放为每一行动态分配的内存, 最后再释放 vals, 释放完后, 
+ * 整个二维数组包括第一层存储的第二维指针变量以及实际数据将都不再存在, 所有空间都被回收。
+ * 
+ * 详细可查看 free_data() 以及 free_matrix() 函数
+ * 
+*/
 typedef struct{
     int w, h;
-    matrix X;
-    matrix y;
-    int shallow;
+    matrix X;     // 标注的训练数据(X, y), X 为图片数据
+    matrix y;     // y 为 label, 即 boxes 数据 
+    int shallow;  // 指示是深度释放还是浅层释放 X,y 中 vals 内存 
     int *num_boxes;
     box **boxes;
 } data;
