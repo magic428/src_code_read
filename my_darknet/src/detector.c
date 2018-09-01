@@ -34,7 +34,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     // 为什么两次用srand(time(0))。。。
     srand(time(0));
 
-    // 提取配置文件名称中的主要信息，用于输出打印（并无实质作用），比如提取cfg/yolo.cfg中的yolo，用于下面的输出打印
+    // 提取文件名，比如提取cfg/yolo.cfg中的yolo，用于下面的输出打印
     char *base = basecfg(cfgfile);
     printf("%s\n", base);
     float avg_loss = -1;

@@ -3,14 +3,37 @@
 static int coco_ids[] = {1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,31,32,33,34,35,36,37,38,39,40,41,42,43,44,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,67,70,72,73,74,75,76,77,78,79,80,81,82,84,85,86,87,88,89,90};
 
 
-void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, int ngpus, int clear)
+/**
+ * \brief: 图像检测网络训练函数 
+ * 
+ * \prarm:  datacfg     训练数据描述信息文件路径
+ *          cfgfile     神经网络结构配置文件路径
+ *          weightfile  预训练参数文件路径
+ *          gpus        GPU 卡号集合 ( 比如使用 1 块 GPU，那么里面只含元素 0，默认
+ *                      使用0 号 GPU； 如果使用 4 块 GPU，那么含有 0,1,2,3 四个 
+ *                      元素； 如果不使用 GPU，那么为空指针 )
+ *          ngpus       使用GPUS块数，使用一块GPU和不使用GPU时，nqpus都等于1
+ *          clear       和 net->seen 相关
+ * 
+ * 说明：关于预训练参数文件 weightfile，
+*/
+void train_detector(char *datacfg, char *cfgfile, 
+    char *weightfile, int *gpus, int ngpus, int clear)
 {
+    // 读入数据配置文件信息, 主要保存了 训练集 / 验证集 图像文件的路径信息和模型保存路径
     list *options = read_data_cfg(datacfg);
     char *train_images = option_find_str(options, "train", "data/train.list");
     char *backup_directory = option_find_str(options, "backup", "/backup/");
 
+    // 它初始化随机种子，会提供一个种子，这个种子会对应一个随机数，如果使用相同的种子后面
+    // 的 rand() 函数会出现一样的随机数
+    // 为了防止随机数每次重复，常常使用系统时间来初始化，即使用 time() 函数来获得系统时间  
+    // 当 srand() 的参数值固定的时候，rand() 获得的数也是固定的， 所以一般 srand() 
+    // 的参数用 time(NULL)， 因为系统的时间一直在变.
+    // 如果想在一个程序中生成随机数序列，需要至多在生成随机数之前设置一次随机种子。
     srand(time(0));
-    char *base = basecfg(cfgfile);
+    // 提取文件名(不带后缀)，比如提取 cfg/yolov3.cfg 中的 yolov3 
+    char *base = basecfg(cfgfile);   
     printf("%s\n", base);
     float avg_loss = -1;
     network **nets = calloc(ngpus, sizeof(network));
