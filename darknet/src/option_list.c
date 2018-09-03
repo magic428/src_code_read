@@ -49,6 +49,22 @@ metadata get_metadata(char *file)
     return m;
 }
 
+/**
+ *  \brief: 解析一行数据的内容，为 options 赋值，主要调用 option_insert()
+ * 
+ *  \param: s    从文件读入的某行字符数组指针
+ *       options 实际输出，解析出的数据将为该变量赋值
+ * 
+ *  \return: 1 表示成功读取有效数据，
+ *           0 表示未能读取有效数据（说明文件中数据格式有问题）
+ * 
+ *  流程: 
+ *      从配置（.data 或者 .cfg， 读取数据配置文件或结构数据文件都需要调用这个函数）
+ *      文件中读入的每行数据包括两部分，第一部分为变量名称，如 learning_rate，
+ *      第二部分为值，如 0.01，两部分由 = 隔开，因此，要分别读入两部分的值，首先识别出
+ *      等号， 获取等号所在的指针，并将等号替换为 '\0'，
+ *      这样第一部分会自动识别到 '\0' 停止，而第二部分则从等号下一个地方开始
+ */
 int read_option(char *s, list *options)
 {
     size_t i;
@@ -61,9 +77,11 @@ int read_option(char *s, list *options)
             break;
         }
     }
+    // 如果 i==len-1， 说明没有找到 '='， 表示配置文件解析错误  
     if(i == len-1) return 0;
     char *key = s;
     option_insert(options, key, val);
+
     return 1;
 }
 

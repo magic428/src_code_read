@@ -5,7 +5,7 @@
 typedef struct{
     char *key;
     char *val;
-    int used;
+    int used;  // the parameter is not used in darknet
 } kvp;
 
 

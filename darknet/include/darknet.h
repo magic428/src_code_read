@@ -427,16 +427,17 @@ typedef enum {
 } learning_rate_policy;
 
 typedef struct network{
-    int n;
-    int batch;
-    size_t *seen;
-    int *t;
-    float epoch;
-    int subdivisions;
-    layer *layers;
-    float *output;
-    learning_rate_policy policy;
+    int n;                      // 网络的层数, 调用 make_network(int n) 时赋值
+    int batch;                  // 一批训练中的图片张数, 和 subdivisions 参数相关
+    size_t *seen;               // 目前已经读入的图片张数(网络已经处理的图片张数)
+    int *t;              
+    float epoch;                // 到目前为止训练了整个数据集的次数
+    int subdivisions;           // TODO
+    layer *layers;              // 存储网络中的所有层  
+    float *output;  
+    learning_rate_policy policy;// 学习率下降策略: TODO
 
+    // 梯度下降法相关参数  
     float learning_rate;
     float momentum;
     float decay;
@@ -456,8 +457,8 @@ typedef struct network{
     float B2;
     float eps;
 
-    int inputs;
-    int outputs;
+    int inputs;   // 网络输入(图片)的参数(像素)个数 
+    int outputs;  // 网络输出的元素个数
     int truths;
     int notruth;
     int h, w, c;
@@ -473,15 +474,24 @@ typedef struct network{
     float hue;
     int random;
 
-    int gpu_index;
+    // darknet 为每个 GPU 维护一个相同的 network, 每个 network 以 gpu_index 区分
+    int gpu_index; 
     tree *hierarchy;
 
-    float *input;
+    // 中间变量，用来暂存某层网络的输入（包含一个 batch 的输入，比如某层网络完成前向，将其输出赋给该变量，作为下一层的输入，可以参看 network.c 中的forward_network() 与 backward_network() 两个函数 ）
+    float *input;  
+    // 中间变量，与上面的 input 对应，用来暂存 input 数据对应的标签数据（真实数据）
     float *truth;
+    // 中间变量，用来暂存某层网络的敏感度图（反向传播处理当前层时，用来存储上一层的敏感度图，因为当前层会计算部分上一层的敏感度图，可以参看 network.c 中的 backward_network() 函数） 
     float *delta;
+    // 网络的工作空间， 是所有层中占用运算空间最大的那个层的 workspace_size, 
+    // 因为每次只有一个层在做前向或反向运算
     float *workspace;
+    // 网络是否处于训练阶段的标志参数，如果是则值为1. 这个参数一般用于训练与测试阶段有不
+    // 同操作的情况，比如 dropout 层，在训练阶段才需要进行 forward_dropout_layer()
+    // 函数， 测试阶段则不需要进入到该函数.
     int train;
-    int index;
+    int index; // 标志参数，当前网络的活跃层 
     float *cost;
     float clip;
 
@@ -572,10 +582,10 @@ typedef enum {
 } data_type;
 
 typedef struct load_args{
-    int threads;
-    char **paths;
+    int threads;   // 加载数据时使用的线程个数
+    char **paths;  // 可 training 的所有数据路径
     char *path;
-    int n;
+    int n;         // paths 的个数
     int m;
     char **labels;
     int h;
@@ -597,7 +607,7 @@ typedef struct load_args{
     float saturation;
     float exposure;
     float hue;
-    data *d;
+    data *d;            // 最后加载完毕的数据保存在这里 
     image *im;
     image *resized;
     data_type type;
@@ -623,9 +633,9 @@ typedef struct node{
 } node;
 
 typedef struct list{
-    int size;
-    node *front;
-    node *back;
+    int size;     // list 的所有节点个数   
+    node *front;  // list 的首节点
+    node *back;   // list 的普通节点  
 } list;
 
 pthread_t load_data(load_args args);

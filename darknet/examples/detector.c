@@ -13,7 +13,10 @@ static int coco_ids[] = {1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,2
  *                      使用0 号 GPU； 如果使用 4 块 GPU，那么含有 0,1,2,3 四个 
  *                      元素； 如果不使用 GPU，那么为空指针 )
  *          ngpus       使用GPUS块数，使用一块GPU和不使用GPU时，nqpus都等于1
- *          clear       和 net->seen 相关
+ *          clear       将已训练图片的数量置零, 在命令行用 "-clear" 参数指定.
+ *                      如果是进行微调模型或者是初次训练, 则将 net->seen 置零
+ *                      如果是接着上次断点继续训练, 则不需要置零 net->seen  
+ * 
  * 
  * 说明：关于预训练参数文件 weightfile，
 */
@@ -50,10 +53,11 @@ void train_detector(char *datacfg, char *cfgfile,
         nets[i]->learning_rate *= ngpus;
     }
     srand(time(0));
-    network *net = nets[0];
+    network *net = nets[0];  // 这个网络除了 gpu_index 之外完全相同
 
     int imgs = net->batch * net->subdivisions * ngpus;
-    printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate, net->momentum, net->decay);
+    printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate,
+        net->momentum, net->decay);
     data train, buffer;
 
     layer l = net->layers[net->n - 1];

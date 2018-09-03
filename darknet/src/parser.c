@@ -727,14 +727,33 @@ int is_network(section *s)
             || strcmp(s->type, "[network]")==0);
 }
 
+/**
+ * \brief: 将配置文件中的参数解析到 network 结构体变量中  
+ * 
+ * \param: filename  配置文件名
+ * 
+ * \return: network* 解析得到的 network 结构体变量指针
+*/
 network *parse_network_cfg(char *filename)
-{
+{   
+    // 从网络配置文件中读入所有网络层的参数，存储到 sections 中，
+    // section 的每个 node 包含一层网络的所有结构参数
+    // 这些层并没有编号，只说明了层的属性，但层的参数都是按顺序在文件中排好的，
+    // 读入时 sections 链表上的顺序就是文件中的排列顺序。
     list *sections = read_cfg(filename);
+
+    // 获取 sections 的第一个节点，cfg 文件中第一个字段是以 [net] 开头, 并不是网络
+    // 结构参数的一部分, 而是网络训练时的一些通用参参数: 比如学习率，衰减率，输入图像的
+    // 宽/高， batch 大小等
     node *n = sections->front;
     if(!n) error("Config file has no sections");
     network *net = make_network(sections->size - 1);
+
+    // gpu_index 定义在 cuda.c 中, 在 darknet.h 中声明 extern int gpu_index; 
+    // gpu_index 的值会在调用 `void cuda_set_device(int n)` 函数时改变
+    // darknet 为每个 GPU 维护一个 network, 以 gpu_index 区分
     net->gpu_index = gpu_index;
-    size_params params;
+    size_params params;  // 临时变量,保存解析各个层需要的参数
 
     section *s = (section *)n->val;
     list *options = s->options;
@@ -744,7 +763,7 @@ network *parse_network_cfg(char *filename)
     params.h = net->h;
     params.w = net->w;
     params.c = net->c;
-    params.inputs = net->inputs;
+    params.inputs = net->inputs;  // 第一层只有输入, 输出维度组要根据层的类型计算
     params.batch = net->batch;
     params.time_steps = net->time_steps;
     params.net = net;
@@ -757,8 +776,11 @@ network *parse_network_cfg(char *filename)
     while(n){
         params.index = count;
         fprintf(stderr, "%5d ", count);
-        s = (section *)n->val;
+        // 获取 每个 section, 其中有 section type 和 section 参数 
+        s = (section *)n->val;   
         options = s->options;
+
+        // 根据 section 类型构建每个层变量, 然后保存到 net->layers[] 数组中.   
         layer l = {0};
         LAYER_TYPE lt = string_to_layer_type(s->type);
         if(lt == CONVOLUTIONAL){
@@ -823,6 +845,7 @@ network *parse_network_cfg(char *filename)
         }else{
             fprintf(stderr, "Type not recognized: %s\n", s->type);
         }
+
         l.clip = net->clip;
         l.truth = option_find_int_quiet(options, "truth", 0);
         l.onlyforward = option_find_int_quiet(options, "onlyforward", 0);
@@ -832,9 +855,13 @@ network *parse_network_cfg(char *filename)
         l.dontloadscales = option_find_int_quiet(options, "dontloadscales", 0);
         l.learning_rate_scale = option_find_float_quiet(options, "learning_rate", 1);
         l.smooth = option_find_float_quiet(options, "smooth", 0);
-        option_unused(options);
-        net->layers[count] = l;
-        if (l.workspace_size > workspace_size) workspace_size = l.workspace_size;
+        option_unused(options);   // 统计该层中没有被使用的参数
+        net->layers[count] = l;   // save the layer to nerwork
+
+        // network 的 workspace_size 是占用运算空间最大的那个层的 workspace_size
+        if (l.workspace_size > workspace_size) 
+            workspace_size = l.workspace_size;  
+
         free_section(s);
         n = n->next;
         ++count;
@@ -845,11 +872,13 @@ network *parse_network_cfg(char *filename)
             params.inputs = l.outputs;
         }
     }
+
     free_list(sections);
-    layer out = get_network_output_layer(net);
+    layer out = get_network_output_layer(net);  // 通常情况下都是最后一层
     net->outputs = out.outputs;
-    net->truths = out.outputs;
-    if(net->layers[net->n-1].truths) net->truths = net->layers[net->n-1].truths;
+    net->truths = out.outputs;   // 默认值
+    if(net->layers[net->n-1].truths) 
+        net->truths = net->layers[net->n-1].truths;
     net->output = out.output;
     net->input = calloc(net->inputs*net->batch, sizeof(float));
     net->truth = calloc(net->truths*net->batch, sizeof(float));
@@ -858,8 +887,9 @@ network *parse_network_cfg(char *filename)
     net->input_gpu = cuda_make_array(net->input, net->inputs*net->batch);
     net->truth_gpu = cuda_make_array(net->truth, net->truths*net->batch);
 #endif
+
     if(workspace_size){
-        //printf("%ld\n", workspace_size);
+        //printf("workspace_size: %ld\n", workspace_size);
 #ifdef GPU
         if(gpu_index >= 0){
             net->workspace = cuda_make_array(0, (workspace_size-1)/sizeof(float)+1);
@@ -870,35 +900,54 @@ network *parse_network_cfg(char *filename)
         net->workspace = calloc(1, workspace_size);
 #endif
     }
+
     return net;
 }
 
+/**
+ * 读取神经网络结构配置文件（.cfg文件）中的配置数据， 将每个神经网络层参数读取到每个
+ * section 结构体 (每个 section 是 sections 的一个节点) 中， 而后全部插入到
+ * list 结构体 sections 中并返回
+ * 
+ * \param: filename    C 风格字符数组， 神经网络结构配置文件路径
+ * 
+ * \return: list 结构体指针，包含从神经网络结构配置文件中读入的所有神经网络层的参数
+ */
 list *read_cfg(char *filename)
 {
     FILE *file = fopen(filename, "r");
     if(file == 0) file_error(filename);
+
+    // 一个 section 表示配置文件中的一个字段，也就是网络结构中的一层
+    // 因此，一个 section 将读取并存储某一层的参数以及该层的 type
     char *line;
-    int nu = 0;
-    list *options = make_list();
-    section *current = 0;
-    while((line=fgetl(file)) != 0){
+    int nu = 0;                   // 当前读取行记号
+    list *options = make_list();  // options 包含所有的神经网络层参数
+    section *current = 0;         // 当前读取到的某一层 
+
+    while((line= fgetl(file)) != 0){
         ++ nu;
-        strip(line);
+        strip(line);  // 去除读入行中含有的空格符
         switch(line[0]){
+            // 以 '[' 开头的行是一个新的 section , 其内容是层的 type 
+            // 比如 [net], [maxpool], [convolutional] ...
             case '[':
                 current = malloc(sizeof(section));
                 list_insert(options, current);
                 current->options = make_list();
                 current->type = line;
                 break;
-            case '\0':
-            case '#':
-            case ';':
-                free(line);
+            case '\0':  // 空行
+            case '#':   // 注释
+            case ';':   // 空行
+                free(line);  // 对于上述三种情况直接释放内存即可
                 break;
+            // 剩下的才真正是网络结构的数据，调用 read_option() 函数读取
+            // 返回 0 说明文件中的数据格式有问题，将会提示错误
             default:
                 if(!read_option(line, current->options)){
-                    fprintf(stderr, "Config file error line %d, could parse: %s\n", nu, line);
+                    fprintf(stderr, "Config file error line %d, could \
+                        parse: %s\n", nu, line);
                     free(line);
                 }
                 break;
@@ -989,6 +1038,13 @@ void save_connected_weights(layer l, FILE *fp)
     }
 }
 
+/**
+ * \brief: 保存训练的权重信息为模型
+ * 
+ * \param: net       存放的是要保存的权重值 
+ *         filename  权值文件的文件名
+ *         cutoff    终止层数, 保存终止层数之前的层的权值信息
+*/
 void save_weights_upto(network *net, char *filename, int cutoff)
 {
 #ifdef GPU
@@ -1185,7 +1241,10 @@ void load_convolutional_weights(layer l, FILE *fp)
             printf("\n");
         }
     }
-    fread(l.weights, sizeof(float), num, fp);
+
+    // l.weights 指向的空间在读取网络参数时已经分配完毕
+    fread(l.weights, sizeof(float), num, fp);  
+    
     //if(l.c == 3) scal_cpu(num, 1./256, l.weights, 1);
     if (l.flipped) {
         transpose_matrix(l.weights, l.c*l.size*l.size, l.n);
@@ -1198,7 +1257,14 @@ void load_convolutional_weights(layer l, FILE *fp)
 #endif
 }
 
-
+/**
+ * \brief: 加载预训练模型中保存的权重信息
+ * 
+ * \param: net       保存加载的模型参数 
+ *         filename  预训练模型的文件名
+ *         start     要加载的预训练模型的起始层数
+ *         cutoff    要加载的预训练模型的终止层数
+*/
 void load_weights_upto(network *net, char *filename, int start, int cutoff)
 {
 #ifdef GPU
@@ -1211,6 +1277,7 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
     FILE *fp = fopen(filename, "rb");
     if(!fp) file_error(filename);
 
+    // 建议先阅读保存权重值的实现部分, 因为读文件是建立在写文件格式的基础上
     int major;
     int minor;
     int revision;
@@ -1224,6 +1291,7 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
         fread(&iseen, sizeof(int), 1, fp);
         *net->seen = iseen;
     }
+    // 是否在读取的时候进行矩阵转置
     int transpose = (major > 1000) || (minor > 1000);
 
     int i;

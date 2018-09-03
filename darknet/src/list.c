@@ -4,11 +4,11 @@
 
 list *make_list()
 {
-	list *l = malloc(sizeof(list));
-	l->size = 0;
-	l->front = 0;
-	l->back = 0;
-	return l;
+    list *l = malloc(sizeof(list));
+    l->size = 0;
+    l->front = 0;
+    l->back = 0;
+    return l;
 }
 
 /*
@@ -37,46 +37,64 @@ void *list_pop(list *l){
     return val;
 }
 
+/*
+ * \brief: 将 val 指针插入 list 结构体 l 中，这里相当于是用 C 实现了 C++ 中的 
+ *         list 的元素插入功能
+ * 
+ * \prama: l    链表指针
+ *         val  链表节点的元素值
+ * 
+ * 流程： list 中保存的是 node 指针. 因此，需要用 node 结构体将 val 包裹起来后才可以
+ *       插入 list 指针 l 中
+ * 
+ * 注意: 此函数类似 C++ 的 insert() 插入方式；
+ *      而 opion_insert() 函数类似 C++ map 的按值插入方式，比如 map[key]= value
+ *      
+ *      两个函数操作对象都是 list 变量， 只是操作方式略有不同。
+*/
 void list_insert(list *l, void *val)
 {
-	node *new = malloc(sizeof(node));
-	new->val = val;
-	new->next = 0;
+    node *new = malloc(sizeof(node));
+    new->val = val;
+    new->next = 0;
 
-	if(!l->back){
-		l->front = new;
-		new->prev = 0;
-	}else{
-		l->back->next = new;
-		new->prev = l->back;
-	}
-	l->back = new;
-	++l->size;
+    // 如果 list 的 back 成员为空(初始化为 0), 说明 l 到目前为止，还没有存入数据  
+    // 另外, 令 l 的 front 为 new （此后 front 将不会再变，除非删除） 
+    if(!l->back){
+        l->front = new;
+        new->prev = 0;
+    }else{
+        l->back->next = new;
+        new->prev = l->back;
+    }
+    l->back = new;
+
+    ++l->size;
 }
 
 void free_node(node *n)
 {
-	node *next;
-	while(n) {
-		next = n->next;
-		free(n);
-		n = next;
-	}
+    node *next;
+    while(n) {
+        next = n->next;
+        free(n);
+        n = next;
+    }
 }
 
 void free_list(list *l)
 {
-	free_node(l->front);
-	free(l);
+    free_node(l->front);
+    free(l);
 }
 
 void free_list_contents(list *l)
 {
-	node *n = l->front;
-	while(n){
-		free(n->val);
-		n = n->next;
-	}
+    node *n = l->front;
+    while(n){
+        free(n->val);
+        n = n->next;
+    }
 }
 
 void **list_to_array(list *l)
