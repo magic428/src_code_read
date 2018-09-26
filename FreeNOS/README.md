@@ -1,4 +1,4 @@
-Free Niek's Operating System.
+## Free Niek's Operating System.
 
 Document: http://www.freenos.org/doxygen/index-2.html
 
@@ -53,3 +53,6 @@ $ scons release
 
 https://blog.csdn.net/geek_tank/article/details/80145466   
 
+## 相关工具  
+
+scons浅入浅出: https://blog.csdn.net/flyingcys/article/details/61196557  
