@@ -640,6 +640,14 @@ matrix load_tags_paths(char **paths, int n, int k)
     return y;
 }
 
+/**
+ *  \brief: 获取对应数据集中的类名, 返回值为一个二维字符数组.     
+ *          字符串一般保存在一维字符数组中, 因此对于字符串数组, 就是一个二维数组
+ *  
+ *  \param: filename  文件路径名
+ * 
+ *  \return: char** 类型，包含从文件中读取到的类名
+ */
 char **get_labels(char *filename)
 {
     list *plist = get_paths(filename);
@@ -1049,8 +1057,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int boxes,
         float dh = jitter * orig.h;
 
         float new_ar = (orig.w + rand_uniform(-dw, dw)) / 
-            (orig.h + rand_uniform(-dh, dh));
-        float scale = rand_uniform(.25, 2);
+            (orig.h + rand_uniform(-dh, dh)); // 新的长宽比
+        float scale = rand_uniform(.25, 2);   // 缩放比例
 
         float nw, nh;
 
@@ -1062,18 +1070,21 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int boxes,
             nh = nw / new_ar;
         }
 
-        float dx = rand_uniform(0, w - nw);
-        float dy = rand_uniform(0, h - nh);
+        float dx = rand_uniform(0, w - nw);  // 宽的变化
+        float dy = rand_uniform(0, h - nh);  // 高的变化
 
+        // 平移
         place_image(orig, nw, nh, dx, dy, sized);
 
+        // hsv 颜色空间上的色度增广
         random_distort_image(sized, hue, saturation, exposure);
 
+        // 镜像翻转
         int flip = rand()%2;
         if(flip) flip_image(sized);
         d.X.vals[i] = sized.data;
 
-
+        // 加载 labels 数据, 并且根据增广方式调整图片的 Bndbox 参数
         fill_truth_detection(random_paths[i], boxes, d.y.vals[i], 
             classes, flip, -dx/w, -dy/h, nw/w, nh/h);
 
@@ -1135,18 +1146,37 @@ pthread_t load_data_in_thread(load_args args)
     return thread;
 }
 
+/*
+ * \brief: 开辟多个线程读入图片数据，读入数据存储至 ptr.d 中（主要调用 
+ *         load_in_thread() 函数完成）
+ * 
+ * \param: ptr: 包含所有线程要读入图片数据的信息（ 如: 读入多少张， 开几个线程读入， 
+ *              读入图片最终的宽高， 图片路径等等 ）
+ * 
+ * 流程： 本函数首先会获取要读入图片的张数、要开启线程的个数， 而后计算每个线程应该读入的
+ *       图片张数（尽可能的均匀分配）. 之后创建所有的线程，并行读入数据，最后合并每个线程
+ *       读入的数据至一个大 data 中，这个 data 的指针变量与 ptr 的指针变量
+ *       指向的是统一块内存， 因此也就最终将数据读入到 ptr.d 中（因此函数没有返回值）
+*/
 void *load_threads(void *ptr)
 {
     int i;
+
+    // args 变量(不是指针变量)是 ptr 指向的内存空间的拷贝;
+    // 但是 ptr 指向内存空间中保存的指针变量指向的空间仍然和 args 变量中的指针变量
+    // 指向的空间相同, 即共享内存空间(下面代码中的 buffers)
     load_args args = *(load_args *)ptr;
     if (args.threads == 0) args.threads = 1;
     data *out = args.d;
-    int total = args.n;
+    int total = args.n;   // 所有的训练图片数据总数
     free(ptr);
+
+    // 可以看出, 每个线程负责加载一部分数据, 最后再进行汇总
     data *buffers = calloc(args.threads, sizeof(data));
     pthread_t *threads = calloc(args.threads, sizeof(pthread_t));
     for(i = 0; i < args.threads; ++i){
         args.d = buffers + i;
+        // 均分每个线程的加载数量, 防止不能被整除的情况
         args.n = (i+1) * total/args.threads - i * total/args.threads;
         threads[i] = load_data_in_thread(args);
     }

@@ -457,8 +457,8 @@ typedef struct network{
     float B2;
     float eps;
 
-    int inputs;   // 网络输入(图片)的参数(像素)个数 
-    int outputs;  // 网络输出的元素个数
+    int inputs;   // 输入层节点个数 
+    int outputs;  // 输出层节点个数
     int truths;
     int notruth;
     int h, w, c;
@@ -484,8 +484,8 @@ typedef struct network{
     float *truth;
     // 中间变量，用来暂存某层网络的敏感度图（反向传播处理当前层时，用来存储上一层的敏感度图，因为当前层会计算部分上一层的敏感度图，可以参看 network.c 中的 backward_network() 函数） 
     float *delta;
-    // 网络的工作空间， 是所有层中占用运算空间最大的那个层的 workspace_size, 
-    // 因为每次只有一个层在做前向或反向运算
+    // 网络的工作空间, 指的是所有层中占用运算空间最大的那个层的 workspace_size, 
+    // 因为实际上在 GPU 或 CPU 中某个时刻只有一个层在做前向或反向运算
     float *workspace;
     // 网络是否处于训练阶段的标志参数，如果是则值为1. 这个参数一般用于训练与测试阶段有不
     // 同操作的情况，比如 dropout 层，在训练阶段才需要进行 forward_dropout_layer()
@@ -582,15 +582,15 @@ typedef enum {
 } data_type;
 
 typedef struct load_args{
-    int threads;   // 加载数据时使用的线程个数
-    char **paths;  // 可 training 的所有数据路径
+    int threads;  // 加载数据时使用的线程个数
+    char **paths; // 所有训练样本的路径名, 由 train.txt 文件给出. 
     char *path;
-    int n;         // paths 的个数
-    int m;
-    char **labels;
-    int h;
+    int n;        // 一次迭代中训练的样本个数, 值为 batch * subdivisions * ngpus
+    int m;        // 所有训练样本的个数
+    char **labels;// 训练样本中的所有类名
+    int h;        // 训练样本的宽高
     int w;
-    int out_w;
+    int out_w;    // 网络输出层的宽高
     int out_h;
     int nh;
     int nw;
@@ -614,6 +614,14 @@ typedef struct load_args{
     tree *hierarchy;
 } load_args;
 
+/**
+ * 图片检测标签数据：图片检测包括识别与定位，定位通过一个矩形框来描述， 
+ * 图片检测的标签数据包括：  
+ *      目标类别 id;
+ *      矩形框中心点 x,y 坐标;
+ *      矩形框宽高(w, h 不是真实的宽高尺寸，而是相对输入图片的宽高比例);
+ *      矩形框四个角点的最小最大 x,y 坐标
+ */
 typedef struct{
     int id;
     float x,y,w,h;

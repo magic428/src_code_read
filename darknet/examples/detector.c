@@ -53,23 +53,25 @@ void train_detector(char *datacfg, char *cfgfile,
         nets[i]->learning_rate *= ngpus;
     }
     srand(time(0));
-    network *net = nets[0];  // 这个网络除了 gpu_index 之外完全相同
+    network *net = nets[0];  // ngpus 个网络除了 gpu_index 之外完全相同
 
     int imgs = net->batch * net->subdivisions * ngpus;
     printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net->learning_rate,
         net->momentum, net->decay);
+
     data train, buffer;
 
-    layer l = net->layers[net->n - 1];
+    layer l = net->layers[net->n - 1];  // 输出层
 
-    int classes = l.classes;
-    float jitter = l.jitter;
+    int classes = l.classes;   // 训练数据的类别数
+    float jitter = l.jitter;   // 样本增广的抖动因子
 
-    list *plist = get_paths(train_images);
+    // 从 train.txt 文件中读取所有训练样本的路径, 并将其转存为二维字符数组
+    list *plist = get_paths(train_images); 
     //int N = plist->size;
     char **paths = (char **)list_to_array(plist);
 
-    load_args args = get_base_args(net);
+    load_args args = get_base_args(net); // 加载和图像增广相关的 args
     args.coords = l.coords;
     args.paths = paths;
     args.n = imgs;

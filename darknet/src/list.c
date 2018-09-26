@@ -97,6 +97,16 @@ void free_list_contents(list *l)
     }
 }
 
+/**
+ * \brief: 将 list 变量 l 中的每个 node 的 val 提取出来，存至一个数组中
+ *         由于 val 中的内容是字符串, 而字符串一般保存在一维字符数组中;
+ *         因此, 对于字符串数组, 就是一个二维数组了
+ * 
+ * \param: l - list 类型变量, 要提取的就是 list 每个节点的值
+ * 
+ * \return: 返回二维数组, 类型为 void** 指针. 因此，使用返回值时必须视具体情况进
+ *          行指针类型转换，比如转为 char**（二维字符数组）
+ */
 void **list_to_array(list *l)
 {
     void **a = calloc(l->size, sizeof(void*));
@@ -106,5 +116,6 @@ void **list_to_array(list *l)
         a[count++] = n->val;
         n = n->next;
     }
+
     return a;
 }

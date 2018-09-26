@@ -61,6 +61,13 @@ static float get_pixel_extend(image m, int x, int y, int c)
     if(c < 0 || c >= m.c) return 0;
     return get_pixel(m, x, y, c);
 }
+
+/**
+ *  \brief: 设置图片 m 中第 c 通道 y 行 x 列的像素值为 val，如果像素值
+ *          位置超出图片范围，则无作为
+ * 
+ *  注意：m 中的像素按行存储（各通道所有行并成一行，然后所有通道再并成一行）
+ */
 static void set_pixel(image m, int x, int y, int c, float val)
 {
     if (x < 0 || y < 0 || c < 0 || x >= m.w || y >= m.h || c >= m.c) return;
@@ -774,6 +781,34 @@ image float_to_image(int w, int h, int c, float *data)
     return out;
 }
 
+/**
+ * \brief: 通过对输入图像 im 进行双线性插值, 得到一个虚拟中间图(之所以称为虚拟,
+ *         是因为这个中间图并不是一个真实存在的变量), 而后将中间图嵌入到 canvas 中
+ *         (此时中间图尺寸比 canvas 小)或者将 canvas 当作一个 mask 在 im 上抠图
+ *         (此时 canvas 尺寸小于中间图尺寸) 
+ * 
+ * \param: im     源图
+ *         w      中间图的宽度
+ *         h      中间图的高度
+ *         dx     中间图插入到 canvas 的 x 方向上的偏移
+ *         dy     中间图插入到 canvas 的 y 方向上的偏移
+ *         canvas 目标图(在传入到本函数之前, 所有像素值已经初始化为某个值, 比如0.5)
+ * 
+ * 说明: 此函数是实现图像数据增强手段中的一种: 平移(不含旋转等其他变换)。
+ *      先用双线性插值将源图 im 重排至一个中间图, im 与中间图的长宽比不一定相同, 
+ *      而后将中间图放入到输出图 canvas 中(这两者的长宽比也不一定相同).
+ *      
+ *      分两种情况; 
+ *      如果中间图的尺寸小于输出图 canvas, 显然中间图是填不满 canvas 的, 那么就将
+ *      中间图随机的嵌入到 canvas 的某个位置(dx, dy 就是起始位置, 此时二者大于 0,
+ *      相对 canvas 的起始位置, 这两个数是在函数外随机生成的), 因为 canvas 已经在
+ *      函数外初始化了(比如所有像素值初始化为 0.5), 剩下没填满的就保持为初始化值；
+ * 
+ *      如果 canvas 的尺寸小于中间图尺寸, 那么就将 canvas 当作一个 mask, 在中间图
+ *      上随机位置(dx, dy 就是起始位置, 此时二者小于 0, 相对中间图的起始位置) 抠图。
+ *      因为 canvas 与中间图的长宽比不一样, 因此, 有可能在一个方向是嵌入情况, 而在另
+ *      一个方向上是mask情况, 总之理解就可以了。
+*/
 void place_image(image im, int w, int h, int dx, int dy, image canvas)
 {
     int x, y, c;
@@ -1445,13 +1480,13 @@ void test_resize(char *filename)
  *          channels    期待图片通道
  *  
  *  \return: image 类型变量
- *           灰度值被归一化至 0～1, 灰度值存储方式为 rrr...ggg...bbb...（只有一行）, 
- *           三通道最终也是存储为一行, 每通道的二维数据按行存储（即所有行并成一行）, 
+ *           灰度值被归一化至 0～1, 灰度值存储方式为 rrr...ggg...bbb...(只有一行), 
+ *           三通道最终也是存储为一行, 每通道的二维数据按行存储(即所有行并成一行), 
  *           而后三通道再并成一行存储
  * 
  *  说明: stbi_load() 返回的值是 unsigned char* 类型, 且数据存储方式是 rgbrgb... 
- *       格式（只有一行）, 而 darknet 中的 image 是三个通道分开存储的（先存所有的 r 通道, 
- *       然后依次是 g, b 通道但还是只有一行）, 类似这种形式: rrr...ggg...bbb...
+ *       格式(只有一行), 而 darknet 中的 image 是三个通道分开存储的(先存所有的 r 通道, 
+ *       然后依次是 g, b 通道但还是只有一行), 类似这种形式: rrr...ggg...bbb...
  * 
  *       如果读入图片通道数不等于 channels, 会进行强转(在 stbi_load() 函数内部完成转换) 
  *       比如即使图片是彩色图, 也可以通过指定通道数读入灰度图, 这和 opencv 的读入函数类似
