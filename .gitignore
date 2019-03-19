@@ -74,7 +74,7 @@ bin-release/
 ## Caffe
 
 # User's build configuration
-Makefile.config
+#Makefile.config
 
 # Data and models are either
 # 1. reference, and not casually committed
@@ -91,6 +91,7 @@ models/*
 
 # build, distribute, and bins (+ python proto bindings)
 build
+.build_release
 .build_debug/*
 .build_release/*
 distribute/*

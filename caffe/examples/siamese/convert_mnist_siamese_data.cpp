@@ -75,7 +75,7 @@ void convert_dataset(const char* image_filename, const char* label_filename,
 
   char label_i;
   char label_j;
-  char* pixels = new char[2 * rows * cols];`
+  char* pixels = new char[2 * rows * cols];
   std::string value;
 
   caffe::Datum datum;

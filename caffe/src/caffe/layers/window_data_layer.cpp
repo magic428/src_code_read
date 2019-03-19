@@ -465,7 +465,7 @@ void WindowDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   }
   batch_timer.Stop();
   DLOG(INFO) << "Prefetch batch: " << batch_timer.MilliSeconds() << " ms.";
-  DLOG(INFO) << "     Read time: " << read_time / 1000 << " ms.";pair_sort_first
+  DLOG(INFO) << "     Read time: " << read_time / 1000 << " ms."; 
   DLOG(INFO) << "Transform time: " << trans_time / 1000 << " ms.";
 }
 

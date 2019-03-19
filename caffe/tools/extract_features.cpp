@@ -97,7 +97,7 @@ int feature_extraction_pipeline(int argc, char** argv) {
    */
   // 根据 prototxt 文件(和预训练模型是对应的)创建网络.
   std::string feature_extraction_proto(argv[++arg_pos]); 
-  boost:: <Net<Dtype> > feature_extraction_net(
+  boost::shared_ptr <Net<Dtype> > feature_extraction_net(
       new Net<Dtype>(feature_extraction_proto, caffe::TEST));
   feature_extraction_net->CopyTrainedLayersFrom(pretrained_binary_proto);
 
