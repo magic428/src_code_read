@@ -266,8 +266,8 @@ class Net {
   /// bottom_vecs stores the vectors containing the input for each layer.
   /// They don't actually host the blobs (blobs_ does), so we simply store
   /// pointers.
-  /// bottom_vecs_ 中保存的是每个层的输入(bottom), 但是它们只存储指针而已, 因为
-  /// 实际的 blob 数据存储在 blobs_ 中. 
+  /// bottom_vecs_ 中保存的是每个层的输入(bottom), 但是它们只存储指针而已.
+  /// ??? 因为实际的 blob 数据存储在 blobs_ 中. 
   vector<vector<Blob<Dtype>*> > bottom_vecs_;
   vector<vector<int> > bottom_id_vecs_;
   vector<vector<bool> > bottom_need_backward_;
