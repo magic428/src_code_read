@@ -249,3 +249,13 @@ bitcoind 服务启动的输出信息:
 2018-09-26T03:00:01Z [default wallet] Releasing wallet
 2018-09-26T03:00:01Z Shutdown: done
 ```
+
+## 区块链头   
+
+> bitcoin/src/rpc/blockchain.cpp  
+
+blockheaderToJSON()
+
+getblockheader()  
+
+

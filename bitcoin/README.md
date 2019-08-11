@@ -78,3 +78,9 @@ Translators should also subscribe to the [mailing list](https://groups.google.co
 ## Install 
 
 https://www.jianshu.com/p/5d397bfc61d7   
+
+## Reference
+
+bitcoinwhitepaper: https://github.com/GammaGao/bitcoinwhitepaper      
+MasterBitcoin2nd: https://github.com/tianmingyun/MasterBitcoin2CN   
+
